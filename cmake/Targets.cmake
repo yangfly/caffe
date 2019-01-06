@@ -47,6 +47,67 @@ function(caffe_collect_sources variable)
 endfunction()
 
 ################################################################################################
+# Collecting contrib include directories (contrib/*)
+# Usage:
+#   caffe_contrib_include_directories(<contrib_include_dirs> <root>)
+function(caffe_contrib_include_directories contrib_include_dirs root)
+  file(GLOB children ${root}/contrib/*)
+  set(result "")
+  foreach(child ${children})
+    if(IS_DIRECTORY ${child})
+      list(APPEND result ${child})
+    endif()
+  endforeach()
+  set(${contrib_include_dirs} ${result} PARENT_SCOPE)
+endfunction()
+
+################################################################################################
+# Short command getting contrib sources (assuming standard contrib code tree)
+# Usage:
+#   caffe_pickup_contrib_sources(<root>)
+macro(caffe_pickup_contrib_sources root)
+  # put all files in source groups (visible as subfolder in many IDEs)
+  caffe_source_group("Contrib\\Include\\Util"   GLOB "${root}/contrib/*/caffe/util/*.h*")
+  caffe_source_group("Contrib\\Include\\Layers" GLOB "${root}/contrib/*/caffe/layers/*.h*")
+  caffe_source_group("Contrib\\Source\\Util"    GLOB "${root}/contrib/*/caffe/util/*.cpp")
+  caffe_source_group("Contrib\\Source\\Layers"  GLOB "${root}/contrib/*/caffe/layers/*.cpp")
+  caffe_source_group("Contrib\\Source\\Cuda"    GLOB "${root}/contrib/*/caffe/layers/*.cu")
+  caffe_source_group("Contrib\\Source\\Cuda"    GLOB "${root}/contrib/*/caffe/util/*.cu")
+  caffe_source_group("Contrib\\Include\\Test"   GLOB "${root}/contrib/*/caffe/test/test_*.h*")
+  caffe_source_group("Contrib\\Source\\Test"    GLOB "${root}/contrib/*/caffe/test/test_*.cpp")
+  caffe_source_group("Contrib\\Source\\Cuda"    GLOB "${root}/contrib/*/caffe/test/test_*.cu")
+
+  # collect files
+  file(GLOB contrib_test_hdrs    ${root}/contrib/*/caffe/test/test_*.h*)
+  file(GLOB contrib_test_srcs    ${root}/contrib/*/caffe/test/test_*.cpp)
+  file(GLOB_RECURSE contrib_hdrs ${root}/contrib/*/caffe/*.h*)
+  file(GLOB_RECURSE contrib_srcs ${root}/contrib/*/caffe/*.cpp)
+  if(contrib_test_hdrs)
+    list(REMOVE_ITEM  contrib_hdrs ${contrib_test_hdrs})
+  endif()
+  if(contrib_test_srcs)
+    list(REMOVE_ITEM  contrib_srcs ${contrib_test_srcs})
+  endif()
+
+  # adding headers to make the visible in some IDEs (Qt, VS, Xcode)
+  list(APPEND contrib_srcs ${contrib_hdrs})
+  list(APPEND contrib_test_srcs ${contrib_test_hdrs})
+
+  # collect cuda files
+  file(GLOB    contrib_test_cuda ${root}/contrib/*/caffe/test/test_*.cu)
+  file(GLOB_RECURSE contrib_cuda ${root}/contrib/*/caffe/*.cu)
+  if(contrib_test_cuda)
+    list(REMOVE_ITEM  contrib_cuda ${contrib_test_cuda})
+  endif()
+
+  # adding contrib files to caffe
+  list(APPEND srcs ${contrib_srcs})
+  list(APPEND cuda ${contrib_cuda})
+  list(APPEND test_srcs ${contrib_test_srcs})
+  list(APPEND test_cuda ${contrib_test_cuda})
+endmacro()
+
+################################################################################################
 # Short command getting caffe sources (assuming standard Caffe code tree)
 # Usage:
 #   caffe_pickup_caffe_sources(<root>)
@@ -54,6 +115,7 @@ function(caffe_pickup_caffe_sources root)
   # put all files in source groups (visible as subfolder in many IDEs)
   caffe_source_group("Include"        GLOB "${root}/include/caffe/*.h*")
   caffe_source_group("Include\\Util"  GLOB "${root}/include/caffe/util/*.h*")
+  caffe_source_group("Include\\Layers" GLOB "${root}/include/caffe/util/*.h*")
   caffe_source_group("Include"        GLOB "${PROJECT_BINARY_DIR}/caffe_config.h*")
   caffe_source_group("Source"         GLOB "${root}/src/caffe/*.cpp")
   caffe_source_group("Source\\Util"   GLOB "${root}/src/caffe/util/*.cpp")
@@ -87,6 +149,9 @@ function(caffe_pickup_caffe_sources root)
   # add proto to make them editable in IDEs too
   file(GLOB_RECURSE proto_files ${root}/src/caffe/*.proto)
   list(APPEND srcs ${proto_files})
+
+  # collect contrib files
+  caffe_pickup_contrib_sources(${root})
 
   # convert to absolute paths
   caffe_convert_absolute_paths(srcs)
