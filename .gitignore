@@ -49,11 +49,13 @@
 
 # Visual Studio Code files
 .vscode
+.editorconfig
 
 # OSX dir files
 .DS_Store
 
 ## Caffe
+*.caffemodel
 
 # User's build configuration
 Makefile.config
