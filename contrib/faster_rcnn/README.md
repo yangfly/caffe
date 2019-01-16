@@ -7,9 +7,10 @@
 |      Layer       | Forward | Backward |      Test      |                                                      Source                                                      |
 | :--------------: | :-----: | :------: | :------------: | ---------------------------------------------------------------------------------------------------------------- |
 |  **ROIPooling**  |  C/GPU  |   GPU    |    :smiley:    | [caffe-fast-rcnn](https://github.com/rbgirshick/caffe-fast-rcnn/commit/0dcd397b29507b8314e252e850518c5695efbb83) |
-| **SmoothL1Loss** |   GPU   |   GPU    |    :smiley:    | [caffe-fast-rcnn](https://github.com/rbgirshick/caffe-fast-rcnn/commit/0dcd397b29507b8314e252e850518c5695efbb83) |
+| **SmoothL1Loss** |  C/GPU  |  C/GPU   |    :smiley:    | [caffe-fast-rcnn](https://github.com/rbgirshick/caffe-fast-rcnn/commit/0dcd397b29507b8314e252e850518c5695efbb83) |
 |   **Proposal**   |  C/GPU  | no need  | :neutral_face: | [SeqFace](https://github.com/huangyangyu/SeqFace)                                                                |
 |  **RCNNOutput**  |  C/GPU  | no need  |    :smiley:    | <font color=pink>own</font>                                                                                      |
+> SmoothL1Loss has been enhanced (cpu forward/backward with test) for ssd.
 > For layer usage please check tutorail/models/coco_vgg16_faster_rcnn_deploy.prototxt
 
 ### Util

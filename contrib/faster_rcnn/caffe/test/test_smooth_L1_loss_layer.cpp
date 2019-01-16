@@ -15,8 +15,6 @@
 
 namespace caffe {
 
-typedef ::testing::Types<GPUDevice<float>, GPUDevice<double> > TestDtypesGPU;
-
 template <typename TypeParam>
 class SmoothL1LossLayerTest : public MultiDeviceTest<TypeParam> {
   typedef typename TypeParam::Dtype Dtype;
@@ -66,7 +64,7 @@ class SmoothL1LossLayerTest : public MultiDeviceTest<TypeParam> {
   vector<Blob<Dtype>*> blob_top_vec_;
 };
 
-TYPED_TEST_CASE(SmoothL1LossLayerTest, TestDtypesGPU);
+TYPED_TEST_CASE(SmoothL1LossLayerTest, TestDtypesAndDevices);
 
 TYPED_TEST(SmoothL1LossLayerTest, TestGradient) {
   typedef typename TypeParam::Dtype Dtype;
@@ -84,6 +82,43 @@ TYPED_TEST(SmoothL1LossLayerTest, TestGradient) {
       this->blob_top_vec_, 0);
   checker.CheckGradientExhaustive(&layer, this->blob_bottom_vec_,
       this->blob_top_vec_, 1);
+}
+
+TYPED_TEST(SmoothL1LossLayerTest, TestForward) {
+  typedef typename TypeParam::Dtype Dtype;
+  LayerParameter layer_param;
+  SmoothL1LossParameter* loss_param =
+      layer_param.mutable_smooth_l1_loss_param();
+  loss_param->set_sigma(2.4);
+
+  const Dtype kLossWeight = 3.7;
+  layer_param.add_loss_weight(kLossWeight);
+  SmoothL1LossLayer<Dtype> layer(layer_param);
+  layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_);
+  layer.Forward(this->blob_bottom_vec_, this->blob_top_vec_);
+
+  // manually compute to compare
+  Dtype sigma2 = loss_param->sigma() * loss_param->sigma();
+  bool has_weights_ = (this->blob_bottom_vec_.size() >= 3);
+  int count = this->blob_bottom_data_->count();
+  Dtype loss(0);
+  for (int i = 0; i < count; i++) {
+    Dtype diff = this->blob_bottom_data_->cpu_data()[i] -    
+                 this->blob_bottom_label_->cpu_data()[i];
+    if (has_weights_)
+      diff *= this->blob_bottom_inside_weights_->cpu_data()[i];
+    Dtype error(0);
+    if (fabs(diff) < 1.0 / sigma2)
+      error = 0.5 * diff * diff * sigma2;
+    else
+      error = fabs(diff) - 0.5 / sigma2;
+    if (has_weights_)
+      error *= this->blob_bottom_outside_weights_->cpu_data()[i];
+    loss += error;
+  }
+
+  loss /= static_cast<Dtype>(this->blob_bottom_data_->num());
+  EXPECT_NEAR(this->blob_top_loss_->cpu_data()[0], loss, 1e-6);
 }
 
 }  // namespace caffe
