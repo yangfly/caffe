@@ -1,0 +1,13 @@
+# caffe
+*.caffemodel
+
+# data
+*.tar
+data/VOC0712/trainval.txt
+data/VOC0712/test.txt
+data/VOC0712/test_name_size.txt
+data/VOCdevkit
+
+# job
+jobs/
+models/VGGNet/VOC*
