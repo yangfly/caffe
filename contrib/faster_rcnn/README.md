@@ -22,13 +22,13 @@
 1. download faster-rcnn coco model to `models/`
 
 ```shell
-$ ./fetch_coco_model.sh
+$ ./models/fetch_coco_model.sh
 ```
 
-2. run demo
+2. run demo (on gpu 0)
 
 ```shell
-$ python demo --gpu 0
+$ python demo.py
 ```
 optional `--gpu -1` to run on cpu.
 

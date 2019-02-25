@@ -3,8 +3,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
-sys.path.insert(0, '../../../python')
-import caffe
+from .caffe_path import caffe
 from .timer import Timer
 
 __all__ = ['Detector']
@@ -32,7 +31,7 @@ CLASSES = dict(
 class Detector(object):
     """Faster R-CNN Detector"""
     def __init__(self, prototxt, caffemodel, gpu_id, dataset='coco',
-                 scale=600, max_size=1000, channel_swap=(2, 0, 1),
+                 scale=600, max_size=1000, transpose=(2, 0, 1),
                  mean=[102.9801, 115.9465, 122.7717]):
         if gpu_id < 0:
             caffe.set_mode_cpu()
@@ -45,7 +44,7 @@ class Detector(object):
 
         self.scale = scale
         self.max_size = max_size
-        self.channel_swap = channel_swap
+        self.transpose = transpose
         self.mean = np.array(mean, dtype=np.float32)[None,None,:]
         self.classes = CLASSES[dataset]
 
@@ -59,7 +58,7 @@ class Detector(object):
         short_size, long_size = sorted(im.shape[:2])
         factor = min(self.scale/short_size, self.max_size/long_size)
         im = cv2.resize(im, None, None, fx=factor, fy=factor)
-        im = im.transpose(self.channel_swap)
+        im = im.transpose(self.transpose)
         info = np.array((im.shape[1], im.shape[2], factor), dtype=np.float32)
         return im, info, factor
 
@@ -74,7 +73,7 @@ class Detector(object):
         else:
             return dets
 
-    def demo(self, image, nms_thresh=0.3, vis_thresh=0.8):
+    def demo(self, image):
         im = cv2.imread(image)
         timer = Timer()
         timer.tic()

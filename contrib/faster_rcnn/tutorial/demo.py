@@ -13,7 +13,7 @@ def parse_args():
     parser.add_argument('--gpu', dest='gpu_id', type=int, default=0,
                         help='GPU device id to use [0]')
     parser.add_argument('--data', dest='root', type=str, default="data",
-                        help='GPU device id to use [0]')
+                        help='directory of images ["data"]')
     parser.add_argument('--pt', dest='prototxt', type=str,
                         default='models/coco_vgg16_faster_rcnn_deploy.prototxt')
     parser.add_argument('--model', dest='caffemodel', type=str,
@@ -45,5 +45,3 @@ if __name__ == '__main__':
     plt.tight_layout()
     plt.draw()
     plt.show()
-
-    # detector.demo(os.path.join(args.root, '000456.jpg'))
