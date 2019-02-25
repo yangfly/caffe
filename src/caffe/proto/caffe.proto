@@ -515,6 +515,9 @@ message Sampler {
   optional float min_aspect_ratio = 3 [default = 1.];
   // Maximum aspect ratio of the sampled bbox.
   optional float max_aspect_ratio = 4 [default = 1.];
+
+  // force to keep object ratio (specially for face detection)
+  optional bool keep_object_ratio = 5 [default = false];
 }
 
 // Constraints for selecting sampled bbox.
@@ -565,6 +568,11 @@ message EmitConstraint {
   optional EmitType emit_type = 1 [default = CENTER];
   // If emit_type is MIN_OVERLAP, provide the emit_overlap.
   optional float emit_overlap = 2;
+  // Explicitly provide the emit_size to emit small object.
+  optional uint32 emit_size = 4;
+  // Either emit_size or emit_h/emit_w should be specified; not both.
+  optional uint32 emit_h = 5;
+  optional uint32 emit_w = 6;
 }
 
 // The normalized bounding box [0, 1] w.r.t. the input image size.
@@ -675,6 +683,9 @@ message MultiBoxLossParameter {
   optional NonMaximumSuppressionParameter nms_param = 21;
   optional int32 sample_size = 22 [default = 64];
   optional bool use_prior_for_nms = 23 [default = false];
+  // parameters for scale compensated matching
+  optional uint32 compensate_topn = 24 [default=0];
+  optional float compensate_threshold = 25 [default=0];
 }
 
 message AnnotatedDataParameter {
@@ -959,6 +970,9 @@ message PriorBoxParameter {
 
   // Offset to the top left corner of each cell.
   optional float offset = 13 [default = 0.5];
+  // Anchor densification strategy,
+  // Number of density should be either 0 nor number of min_size.
+  repeated uint32 density = 14;
 }
 
 message VideoDataParameter{

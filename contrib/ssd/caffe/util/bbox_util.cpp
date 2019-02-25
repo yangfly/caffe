@@ -330,9 +330,27 @@ float BBoxCoverage(const NormalizedBBox& bbox1, const NormalizedBBox& bbox2) {
   }
 }
 
-bool MeetEmitConstraint(const NormalizedBBox& src_bbox,
+bool MeetEmitConstraint(const int img_height, const int img_width,
+                        const NormalizedBBox& src_bbox,
                         const NormalizedBBox& bbox,
                         const EmitConstraint& emit_constraint) {
+  float emit_h = 0, emit_w = 0;
+  if (emit_constraint.has_emit_size()) {
+    CHECK(!emit_constraint.has_emit_h() && !emit_constraint.has_emit_w());
+    emit_h = emit_w = emit_constraint.emit_size();
+  }
+  if (emit_constraint.has_emit_h()) {
+    emit_h = emit_constraint.emit_h();
+  }
+  if (emit_constraint.has_emit_w()) {
+    emit_w = emit_constraint.emit_w();
+  }
+  float height = (bbox.ymax() - bbox.ymin()) * img_height + 1;
+  float width = (bbox.xmax() - bbox.xmin()) * img_width + 1;
+  if (height <= emit_h || width <= emit_w) {
+    return false;
+  }
+
   EmitType emit_type = emit_constraint.emit_type();
   if (emit_type == EmitConstraint_EmitType_CENTER) {
     float x_center = (bbox.xmin() + bbox.xmax()) / 2;
@@ -581,11 +599,17 @@ void DecodeBBoxesAll(const vector<LabelBBox>& all_loc_preds,
   }
 }
 
+bool overlap_cmp(const pair<int,float> &p1,const pair<int,float> &p2)
+{
+	return p1.second > p2.second;
+}
+
 void MatchBBox(const vector<NormalizedBBox>& gt_bboxes,
     const vector<NormalizedBBox>& pred_bboxes, const int label,
     const MatchType match_type, const float overlap_threshold,
     const bool ignore_cross_boundary_bbox,
-    vector<int>* match_indices, vector<float>* match_overlaps) {
+    vector<int>* match_indices, vector<float>* match_overlaps,
+    const int compensate_topn, const float compensate_threshold) {
   int num_pred = pred_bboxes.size();
   match_indices->clear();
   match_indices->resize(num_pred, -1);
@@ -634,6 +658,7 @@ void MatchBBox(const vector<NormalizedBBox>& gt_bboxes,
   for (int i = 0; i < num_gt; ++i) {
     gt_pool.push_back(i);
   }
+  vector<int> gt_boxnum(num_gt, 0);
   while (gt_pool.size() > 0) {
     // Find the most overlapped gt and cooresponding predictions.
     int max_idx = -1;
@@ -669,6 +694,7 @@ void MatchBBox(const vector<NormalizedBBox>& gt_bboxes,
       CHECK_EQ((*match_indices)[max_idx], -1);
       (*match_indices)[max_idx] = gt_indices[max_gt_idx];
       (*match_overlaps)[max_idx] = max_overlap;
+      gt_boxnum[max_gt_idx]++;
       // Erase the ground truth.
       gt_pool.erase(std::find(gt_pool.begin(), gt_pool.end(), max_gt_idx));
     }
@@ -708,8 +734,67 @@ void MatchBBox(const vector<NormalizedBBox>& gt_bboxes,
           CHECK_EQ((*match_indices)[i], -1);
           (*match_indices)[i] = gt_indices[max_gt_idx];
           (*match_overlaps)[i] = max_overlap;
+          gt_boxnum[max_gt_idx]++;
         }
       }
+      // Scale Compensation Matching
+      if (compensate_topn > 0) {
+        int tiny_gt_num = 0;
+        vector<int> tiny_gt_indices;
+        for (int i = 0; i < gt_indices.size(); i++) {
+            if (gt_boxnum[i] < compensate_topn) {
+              tiny_gt_indices.push_back(i);
+            }
+        }    
+        tiny_gt_num = tiny_gt_indices.size();
+        if (tiny_gt_num > 0) {
+          vector< vector< pair<int, float> > > tiny_overlaps(tiny_gt_num);
+          // find tiny overlaps     
+          for (map<int, map<int, float> >::iterator it = overlaps.begin();
+              it != overlaps.end(); ++it) {
+            int i = it->first;
+            if ((*match_indices)[i] != -1) {
+              // The prediction already has matched ground truth or is ignored.
+              continue;
+            }
+            int max_gt_idx = -1;
+            float max_overlap = -1;
+            for (int j = 0; j < tiny_gt_num; ++j) {
+              if (it->second.find(tiny_gt_indices[j]) == it->second.end()) {
+                // No overlap between the i-th prediction and j-th ground truth.
+                continue;
+              }
+              // Find the maximum overlapped pair.
+              float overlap = it->second[tiny_gt_indices[j]];
+              if (overlap >= compensate_threshold && overlap > max_overlap) {
+                // If the prediction has not been matched to any ground truth,
+                // and the overlap is larger than maximum overlap, update.
+                max_gt_idx = j;
+                max_overlap = overlap;
+              }
+            }
+            if (max_gt_idx != -1) {
+              // Found a matched ground truth.
+              CHECK_EQ((*match_indices)[i], -1);
+              tiny_overlaps[max_gt_idx].push_back(pair<int, float>(i, max_overlap));
+            }
+          }
+          // sort overlap
+          for (int i = 0; i < tiny_gt_num; i++) {
+              vector<pair<int, float> > tiny_gt_v = tiny_overlaps[i];
+              sort(tiny_gt_v.begin(), tiny_gt_v.end(), overlap_cmp);
+              int k = 0;    
+              for (vector<pair<int, float> > ::iterator it=tiny_gt_v.begin(); it != tiny_gt_v.end(); it++) {
+                  if (++k < compensate_topn) {
+                      if ((*match_indices)[it->first] == -1) {
+                          (*match_indices)[it->first] = tiny_gt_indices[i];
+                          (*match_overlaps)[it->first] = it->second;
+                      }
+                  }        
+              }
+          }
+        }
+      }  
       break;
     default:
       LOG(FATAL) << "Unknown matching type.";
@@ -735,6 +820,8 @@ void FindMatches(const vector<LabelBBox>& all_loc_preds,
   const bool share_location = multibox_loss_param.share_location();
   const int loc_classes = share_location ? 1 : num_classes;
   const MatchType match_type = multibox_loss_param.match_type();
+  const int compensate_topn = multibox_loss_param.compensate_topn();
+  const float compensate_threshold = multibox_loss_param.compensate_threshold();
   const float overlap_threshold = multibox_loss_param.overlap_threshold();
   const bool use_prior_for_matching =
       multibox_loss_param.use_prior_for_matching();
@@ -773,7 +860,8 @@ void FindMatches(const vector<LabelBBox>& all_loc_preds,
                      all_loc_preds[i].find(label)->second, &loc_bboxes);
         MatchBBox(gt_bboxes, loc_bboxes, label, match_type,
                   overlap_threshold, ignore_cross_boundary_bbox,
-                  &match_indices[label], &match_overlaps[label]);
+                  &match_indices[label], &match_overlaps[label],
+                  compensate_topn, compensate_threshold);
       }
     } else {
       // Use prior bboxes to match against all ground truth.
@@ -782,7 +870,7 @@ void FindMatches(const vector<LabelBBox>& all_loc_preds,
       const int label = -1;
       MatchBBox(gt_bboxes, prior_bboxes, label, match_type, overlap_threshold,
                 ignore_cross_boundary_bbox, &temp_match_indices,
-                &temp_match_overlaps);
+                &temp_match_overlaps, compensate_topn, compensate_threshold);
       if (share_location) {
         match_indices[label] = temp_match_indices;
         match_overlaps[label] = temp_match_overlaps;

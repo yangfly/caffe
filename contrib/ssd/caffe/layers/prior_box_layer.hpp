@@ -64,6 +64,7 @@ class PriorBoxLayer : public Layer<Dtype> {
   }
 
   vector<float> min_sizes_;
+  vector<int> densities_;
   vector<float> max_sizes_;
   vector<float> aspect_ratios_;
   bool flip_;

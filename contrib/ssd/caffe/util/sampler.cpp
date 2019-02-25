@@ -83,7 +83,9 @@ bool SatisfySampleConstraint(const NormalizedBBox& sampled_bbox,
   return found;
 }
 
-void SampleBBox(const Sampler& sampler, NormalizedBBox* sampled_bbox) {
+void SampleBBox(const AnnotatedDatum& anno_datum,
+                const Sampler& sampler,
+                NormalizedBBox* sampled_bbox) {
   // Get random scale.
   CHECK_GE(sampler.max_scale(), sampler.min_scale());
   CHECK_GT(sampler.min_scale(), 0.);
@@ -91,20 +93,32 @@ void SampleBBox(const Sampler& sampler, NormalizedBBox* sampled_bbox) {
   float scale;
   caffe_rng_uniform(1, sampler.min_scale(), sampler.max_scale(), &scale);
 
-  // Get random aspect ratio.
-  CHECK_GE(sampler.max_aspect_ratio(), sampler.min_aspect_ratio());
-  CHECK_GT(sampler.min_aspect_ratio(), 0.);
-  CHECK_LT(sampler.max_aspect_ratio(), FLT_MAX);
-  float aspect_ratio;
-  caffe_rng_uniform(1, sampler.min_aspect_ratio(), sampler.max_aspect_ratio(),
-      &aspect_ratio);
-
-  aspect_ratio = std::max<float>(aspect_ratio, std::pow(scale, 2.));
-  aspect_ratio = std::min<float>(aspect_ratio, 1 / std::pow(scale, 2.));
-
-  // Figure out bbox dimension.
-  float bbox_width = scale * sqrt(aspect_ratio);
-  float bbox_height = scale / sqrt(aspect_ratio);
+  float bbox_width, bbox_height;
+  if (sampler.keep_object_ratio()) {
+    int img_width = anno_datum.datum().width();
+    int img_height = anno_datum.datum().height();
+    if(img_width > img_height){
+      bbox_height = scale;
+      bbox_width = scale * img_height / img_width;
+    } else {
+      bbox_width = scale;
+      bbox_height = scale * img_width / img_height;
+    }
+  } else {
+    // Get random aspect ratio.
+    CHECK_GE(sampler.max_aspect_ratio(), sampler.min_aspect_ratio());
+    CHECK_GT(sampler.min_aspect_ratio(), 0.);
+    CHECK_LT(sampler.max_aspect_ratio(), FLT_MAX);
+    float aspect_ratio;
+    float min_aspect_ratio = 
+        std::max<float>(sampler.min_aspect_ratio(), std::pow(scale, 2.));
+    float max_aspect_ratio = 
+        std::min<float>(sampler.max_aspect_ratio(), 1 / std::pow(scale, 2.));
+    caffe_rng_uniform(1, min_aspect_ratio, max_aspect_ratio, &aspect_ratio);
+    // Figure out bbox dimension.
+    bbox_width = scale * sqrt(aspect_ratio);
+    bbox_height = scale / sqrt(aspect_ratio);
+  }
 
   // Figure out top left coordinates.
   float w_off, h_off;
@@ -117,7 +131,8 @@ void SampleBBox(const Sampler& sampler, NormalizedBBox* sampled_bbox) {
   sampled_bbox->set_ymax(h_off + bbox_height);
 }
 
-void GenerateSamples(const NormalizedBBox& source_bbox,
+void GenerateSamples(const AnnotatedDatum& anno_datum,
+                     const NormalizedBBox& source_bbox,
                      const vector<NormalizedBBox>& object_bboxes,
                      const BatchSampler& batch_sampler,
                      vector<NormalizedBBox>* sampled_bboxes) {
@@ -129,7 +144,7 @@ void GenerateSamples(const NormalizedBBox& source_bbox,
     }
     // Generate sampled_bbox in the normalized space [0, 1].
     NormalizedBBox sampled_bbox;
-    SampleBBox(batch_sampler.sampler(), &sampled_bbox);
+    SampleBBox(anno_datum, batch_sampler.sampler(), &sampled_bbox);
     // Transform the sampled_bbox w.r.t. source_bbox.
     LocateBBox(source_bbox, sampled_bbox, &sampled_bbox);
     // Determine if the sampled bbox is positive or negative by the constraint.
@@ -154,7 +169,7 @@ void GenerateBatchSamples(const AnnotatedDatum& anno_datum,
       unit_bbox.set_ymin(0);
       unit_bbox.set_xmax(1);
       unit_bbox.set_ymax(1);
-      GenerateSamples(unit_bbox, object_bboxes, batch_samplers[i],
+      GenerateSamples(anno_datum, unit_bbox, object_bboxes, batch_samplers[i],
                       sampled_bboxes);
     }
   }

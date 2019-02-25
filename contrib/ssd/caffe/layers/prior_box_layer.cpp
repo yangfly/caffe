@@ -36,7 +36,25 @@ void PriorBoxLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       }
     }
   }
-  num_priors_ = aspect_ratios_.size() * min_sizes_.size();
+
+  if (prior_box_param.density_size() > 0) {
+    if (prior_box_param.max_size_size() > 0) {
+      LOG(WARNING) << "Currently density does not work on max_size.";
+    }
+    for (int i = 0; i < prior_box_param.density_size(); ++i) {
+      densities_.push_back(prior_box_param.density(i));
+      CHECK_GT(densities_.back(), 0) << "density must be positive.";
+    }
+    CHECK_EQ(min_sizes_.size(), densities_.size());
+  } else {
+    densities_ = vector<int>(min_sizes_.size(), 1);
+  }
+  num_priors_ = 0;
+  for (int i = 0; i < densities_.size(); i++) {
+    num_priors_ += densities_[i] * densities_[i];
+  }
+  num_priors_ *= aspect_ratios_.size();
+
   if (prior_box_param.max_size_size() > 0) {
     CHECK_EQ(prior_box_param.min_size_size(), prior_box_param.max_size_size());
     for (int i = 0; i < prior_box_param.max_size_size(); ++i) {
@@ -147,17 +165,28 @@ void PriorBoxLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       float box_width, box_height;
       for (int s = 0; s < min_sizes_.size(); ++s) {
         int min_size_ = min_sizes_[s];
+        int density_ = densities_[s];
+        int shift_w = step_w / density_;
+        int shift_h = step_h / density_;
         // first prior: aspect_ratio = 1, size = min_size
         box_width = box_height = min_size_;
-        // xmin
-        top_data[idx++] = (center_x - box_width / 2.) / img_width;
-        // ymin
-        top_data[idx++] = (center_y - box_height / 2.) / img_height;
-        // xmax
-        top_data[idx++] = (center_x + box_width / 2.) / img_width;
-        // ymax
-        top_data[idx++] = (center_y + box_height / 2.) / img_height;
-
+        float ctemp_y = center_y + (shift_h - step_h) / 2.;
+        for (int i = 0; i < density_; ++i) {
+          float ctemp_x = center_x + (shift_w - step_w) / 2.;
+          for (int j = 0; j < density_; ++j) {
+            // xmin
+            top_data[idx++] = (ctemp_x - box_width / 2.) / img_width;
+            // ymin
+            top_data[idx++] = (ctemp_y - box_height / 2.) / img_height;
+            // xmax
+            top_data[idx++] = (ctemp_x + box_width / 2.) / img_width;
+            // ymax
+            top_data[idx++] = (ctemp_y + box_height / 2.) / img_height;
+            ctemp_x += shift_w;
+          }
+          ctemp_y += shift_h;
+        }
+        
         if (max_sizes_.size() > 0) {
           CHECK_EQ(min_sizes_.size(), max_sizes_.size());
           int max_size_ = max_sizes_[s];
@@ -181,14 +210,22 @@ void PriorBoxLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
           }
           box_width = min_size_ * sqrt(ar);
           box_height = min_size_ / sqrt(ar);
-          // xmin
-          top_data[idx++] = (center_x - box_width / 2.) / img_width;
-          // ymin
-          top_data[idx++] = (center_y - box_height / 2.) / img_height;
-          // xmax
-          top_data[idx++] = (center_x + box_width / 2.) / img_width;
-          // ymax
-          top_data[idx++] = (center_y + box_height / 2.) / img_height;
+          float ctemp_y = center_y + (shift_h - step_h) / 2.;
+          for (int i = 0; i < density_; ++i) {
+            float ctemp_x = center_x + (shift_w - step_w) / 2.;
+            for (int j = 0; j < density_; ++j) {
+              // xmin
+              top_data[idx++] = (ctemp_x - box_width / 2.) / img_width;
+              // ymin
+              top_data[idx++] = (ctemp_y - box_height / 2.) / img_height;
+              // xmax
+              top_data[idx++] = (ctemp_x + box_width / 2.) / img_width;
+              // ymax
+              top_data[idx++] = (ctemp_y + box_height / 2.) / img_height;
+              ctemp_x += shift_w;
+            }
+            ctemp_y += shift_h;
+          }
         }
       }
     }

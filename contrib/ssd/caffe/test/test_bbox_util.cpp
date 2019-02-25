@@ -737,6 +737,41 @@ TEST_F(CPUBBoxUtilTest, TestMatchBBoxLableAllPerPredictionEx) {
   EXPECT_NEAR(match_overlaps[5], 0., eps);
 }
 
+TEST_F(CPUBBoxUtilTest, TestMatchBBoxScaleCompensation) {
+  vector<NormalizedBBox> gt_bboxes;
+  vector<NormalizedBBox> pred_bboxes;
+
+  FillBBoxes(&gt_bboxes, &pred_bboxes);
+
+  int label = -1;
+  MatchType match_type = MultiBoxLossParameter_MatchType_PER_PREDICTION;
+  float overlap = 0.5;
+  int compensate_topn = 2;
+  float compensate_threshold = 0.01;
+
+  vector<int> match_indices;
+  vector<float> match_overlaps;
+
+  MatchBBox(gt_bboxes, pred_bboxes, label, match_type, overlap, true,
+            &match_indices, &match_overlaps, compensate_topn, compensate_threshold);
+
+  EXPECT_EQ(match_indices.size(), 6);
+  EXPECT_EQ(match_overlaps.size(), 6);
+
+  EXPECT_EQ(match_indices[0], 0);
+  EXPECT_EQ(match_indices[1], 0);
+  EXPECT_EQ(match_indices[2], -1);
+  EXPECT_EQ(match_indices[3], 1);
+  EXPECT_EQ(match_indices[4], 1);
+  EXPECT_EQ(match_indices[5], -1);
+  EXPECT_NEAR(match_overlaps[0], 4./9, eps);
+  EXPECT_NEAR(match_overlaps[1], 2./6, eps);
+  EXPECT_NEAR(match_overlaps[2], 2./8, eps);
+  EXPECT_NEAR(match_overlaps[3], 4./8, eps);
+  EXPECT_NEAR(match_overlaps[4], 1./11, eps);
+  EXPECT_NEAR(match_overlaps[5], 0., eps);
+}
+
 TEST_F(CPUBBoxUtilTest, TestGetGroundTruth) {
   const int num_gt = 4;
   Blob<float> gt_blob(1, 1, num_gt, 8);

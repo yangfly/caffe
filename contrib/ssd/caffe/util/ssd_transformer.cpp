@@ -287,6 +287,12 @@ void SSDTransformer<Dtype>::TransformAnnotation(
     RepeatedPtrField<AnnotationGroup>* transformed_anno_group_all) {
   const int img_height = anno_datum.datum().height();
   const int img_width = anno_datum.datum().width();
+  int now_height = img_height;
+  int now_width = img_width;
+  if (do_resize && param_.has_resize_param()) {
+    now_height = param_.resize_param().height();
+    now_width = param_.resize_param().width();
+  }
   if (anno_datum.type() == AnnotatedDatum_AnnotationType_BBOX) {
     // Go through each AnnotationGroup.
     for (int g = 0; g < anno_datum.annotation_group_size(); ++g) {
@@ -306,7 +312,7 @@ void SSDTransformer<Dtype>::TransformAnnotation(
                                    &resize_bbox);
         }
         if (param_.has_emit_constraint() &&
-            !MeetEmitConstraint(crop_bbox, resize_bbox,
+            !MeetEmitConstraint(now_height, now_width, crop_bbox, resize_bbox,
                                 param_.emit_constraint())) {
           continue;
         }

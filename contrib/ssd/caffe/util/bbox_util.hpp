@@ -114,7 +114,8 @@ void EncodeBBox(const NormalizedBBox& prior_bbox,
     NormalizedBBox* encode_bbox);
 
 // Check if a bbox meet emit constraint w.r.t. src_bbox.
-bool MeetEmitConstraint(const NormalizedBBox& src_bbox,
+bool MeetEmitConstraint(const int img_height, const int img_width,
+    const NormalizedBBox& src_bbox,
     const NormalizedBBox& bbox, const EmitConstraint& emit_constraint);
 
 // Decode a bbox according to a prior bbox.
@@ -144,7 +145,8 @@ void MatchBBox(const vector<NormalizedBBox>& gt,
     const vector<NormalizedBBox>& pred_bboxes, const int label,
     const MatchType match_type, const float overlap_threshold,
     const bool ignore_cross_boundary_bbox,
-    vector<int>* match_indices, vector<float>* match_overlaps);
+    vector<int>* match_indices, vector<float>* match_overlaps,
+    const int compensate_topn=0, const float compensate_threshold=0.f);
 
 // Find matches between prediction bboxes and ground truth bboxes.
 //    all_loc_preds: stores the location prediction, where each item contains

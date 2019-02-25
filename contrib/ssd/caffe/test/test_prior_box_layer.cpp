@@ -160,6 +160,28 @@ TYPED_TEST(PriorBoxLayerTest, TestSetupAspectRatioMultiSize) {
   EXPECT_EQ(this->blob_top_->width(), 1);
 }
 
+TYPED_TEST(PriorBoxLayerTest, TestSetupDenseMultiSize) {
+  LayerParameter layer_param;
+  PriorBoxParameter* prior_box_param = layer_param.mutable_prior_box_param();
+  prior_box_param->add_min_size(this->min_size_);
+  prior_box_param->add_min_size(this->min_size_ + 10);
+  prior_box_param->add_min_size(this->min_size_ + 20);
+  prior_box_param->add_density(4);
+  prior_box_param->add_density(2);
+  prior_box_param->add_density(1);
+  prior_box_param->add_max_size(this->max_size_);
+  prior_box_param->add_max_size(this->max_size_ + 10);
+  prior_box_param->add_max_size(this->max_size_ + 20);
+  prior_box_param->add_aspect_ratio(2.);
+  prior_box_param->add_aspect_ratio(3.);
+  PriorBoxLayer<TypeParam> layer(layer_param);
+  layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_);
+  EXPECT_EQ(this->blob_top_->num(), 1);
+  EXPECT_EQ(this->blob_top_->channels(), 2);
+  EXPECT_EQ(this->blob_top_->height(), 100 * 108 * 4);
+  EXPECT_EQ(this->blob_top_->width(), 1);
+}
+
 TYPED_TEST(PriorBoxLayerTest, TestCPU) {
   const TypeParam eps = 1e-6;
   LayerParameter layer_param;
@@ -546,6 +568,64 @@ TYPED_TEST(PriorBoxLayerTest, TestCPUFixStep) {
   EXPECT_NEAR(top_data[14*10*4*4+4*4*4+13], 1.45 - 0.02*sqrt(2.), eps);
   EXPECT_NEAR(top_data[14*10*4*4+4*4*4+14], 0.45 + 0.01*sqrt(2.), eps);
   EXPECT_NEAR(top_data[14*10*4*4+4*4*4+15], 1.45 + 0.02*sqrt(2.), eps);
+
+  // check variance
+  top_data += dim;
+  for (int d = 0; d < dim; ++d) {
+    EXPECT_NEAR(top_data[d], 0.1, eps);
+  }
+}
+
+TYPED_TEST(PriorBoxLayerTest, TestCPUDenseMultiSize) {
+  const TypeParam eps = 1e-6;
+  LayerParameter layer_param;
+  PriorBoxParameter* prior_box_param = layer_param.mutable_prior_box_param();
+  prior_box_param->add_min_size(this->min_size_);
+  prior_box_param->add_density(2);
+  prior_box_param->add_min_size(this->min_size_ * 2);
+  prior_box_param->add_density(1);
+  prior_box_param->set_step(8);
+  PriorBoxLayer<TypeParam> layer(layer_param);
+  layer.SetUp(this->blob_bottom_vec_, this->blob_top_vec_);
+  layer.Forward(this->blob_bottom_vec_, this->blob_top_vec_);
+  // Now, check values
+  const TypeParam* top_data = this->blob_top_->cpu_data();
+  int dim = this->blob_top_->height();
+  // pick a few generated priors and compare against the expected number.
+  vector<vector<int> > group_coods = {
+    {0,0}, {0,1}, {1,0}, {1,1}, {6,7}
+  };
+  for (int i = 0; i < group_coods.size(); i++) {
+    int gx = group_coods[i][0];
+    int gy = group_coods[i][1];
+    const TypeParam* temp_data = top_data + (gy * 10 + gx) * 20;
+    /// min_size=4, density=2
+    // prior (0,0)
+    EXPECT_NEAR(temp_data[0], 0.00 + 0.08 * gx, eps);
+    EXPECT_NEAR(temp_data[1], 0.00 + 0.08 * gy, eps);
+    EXPECT_NEAR(temp_data[2], 0.04 + 0.08 * gx, eps);
+    EXPECT_NEAR(temp_data[3], 0.04 + 0.08 * gy, eps);
+    // prior (0,1)
+    EXPECT_NEAR(temp_data[4], 0.04 + 0.08 * gx, eps);
+    EXPECT_NEAR(temp_data[5], 0.00 + 0.08 * gy, eps);
+    EXPECT_NEAR(temp_data[6], 0.08 + 0.08 * gx, eps);
+    EXPECT_NEAR(temp_data[7], 0.04 + 0.08 * gy, eps);
+    // prior (1,0)
+    EXPECT_NEAR(temp_data[8],  0.00 + 0.08 * gx, eps);
+    EXPECT_NEAR(temp_data[9],  0.04 + 0.08 * gy, eps);
+    EXPECT_NEAR(temp_data[10], 0.04 + 0.08 * gx, eps);
+    EXPECT_NEAR(temp_data[11], 0.08 + 0.08 * gy, eps);
+    // prior (1,1)
+    EXPECT_NEAR(temp_data[12], 0.04 + 0.08 * gx, eps);
+    EXPECT_NEAR(temp_data[13], 0.04 + 0.08 * gy, eps);
+    EXPECT_NEAR(temp_data[14], 0.08 + 0.08 * gx, eps);
+    EXPECT_NEAR(temp_data[15], 0.08 + 0.08 * gy, eps);
+    /// min_size=8, density=1
+    EXPECT_NEAR(temp_data[16], 0.00 + 0.08 * gx, eps);
+    EXPECT_NEAR(temp_data[17], 0.00 + 0.08 * gy, eps);
+    EXPECT_NEAR(temp_data[18], 0.08 + 0.08 * gx, eps);
+    EXPECT_NEAR(temp_data[19], 0.08 + 0.08 * gy, eps);
+  }
 
   // check variance
   top_data += dim;

@@ -4,16 +4,16 @@
 
 ### layers
 
-|         Layer         | Forward | Backward |      Test      |
-| :-------------------: | :-----: | :------: | :------------: |
-|   **AnnotatedData**   |   CPU   | no need  |    :smiley:    |
-|     **VideoData**     |   CPU   | no need  |       -        |
-|     **PriorBox**      |   CPU   | no need  | :neutral_face: |
-|      **Permute**      |  C/GPU  |  C/GPU   |    :smiley:    |
-|     **Normalize**     |  C/GPU  |  C/GPU   |    :smiley:    |
-|   **MultiboxLoss**    |   CPU   |   CPU    |    :smiley:    |
-|  **DetectionOutput**  |  C/GPU  | no need  |    :smiley:    |
-| **DetectionEvaluate** |   CPU   |  C/GPU   |    :smiley:    |
+|         Layer         | Forward | Backward |   Test   |
+| :-------------------: | :-----: | :------: | :------: |
+|   **AnnotatedData**   |   CPU   | no need  | :smiley: |
+|     **VideoData**     |   CPU   | no need  |    -     |
+|     **PriorBox**      |   CPU   | no need  | :smiley: |
+|      **Permute**      |  C/GPU  |  C/GPU   | :smiley: |
+|     **Normalize**     |  C/GPU  |  C/GPU   | :smiley: |
+|   **MultiboxLoss**    |   CPU   |   CPU    | :smiley: |
+|  **DetectionOutput**  |  C/GPU  | no need  | :smiley: |
+| **DetectionEvaluate** |   CPU   |  C/GPU   | :smiley: |
 > All layer adapted from [Official SSD](#SSD)
 
 ### Util
